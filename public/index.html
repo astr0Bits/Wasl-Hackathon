@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#ef4444" />
+  <title>Wasl — وصل</title>
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+  <link rel="stylesheet" href="index.css" />
+  <!-- Leaflet CSS in <head> is fine — CSS never blocks rendering the way JS does -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+</head>
+<body>
+<div class="app">
+
+  <!-- ── Navbar ───────────────────────────────────────────────────── -->
+  <nav class="navbar" id="navbar" style="display:none">
+    <div>
+      <span class="navbar-logo">وصل</span>
+      <div class="navbar-subtitle">Wasl Emergency Alert</div>
+    </div>
+    <div class="navbar-role" style="display:flex;align-items:center;gap:0.75rem">
+      <span class="conn-indicator" id="conn-dot" title="Connecting…"></span>
+      <span id="nav-name" class="text-muted text-sm"></span>
+      <span id="nav-role" class="badge"></span>
+      <button class="logout-btn" onclick="logout()">Sign out</button>
+    </div>
+  </nav>
+
+  <main>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         SCREEN: Login / Register
+         ══════════════════════════════════════════════════════════════ -->
+    <div class="screen active" id="screen-login">
+      <div class="auth-card">
+        <div class="auth-logo">وصل</div>
+        <h1 class="auth-title">Wasl</h1>
+
+        <form onsubmit="submitLogin(event)">
+          <!-- Registration-only fields -->
+          <div id="register-fields" style="display:none">
+            <div class="form-group">
+              <label for="reg-name">Full Name</label>
+              <input type="text" id="reg-name" placeholder="Your full name" autocomplete="name" />
+            </div>
+            <div class="form-group">
+              <label for="reg-role">Role</label>
+              <select id="reg-role">
+                <option value="ROLE_RESIDENT">Resident (sends SOS)</option>
+                <option value="ROLE_RESPONDER">Responder (Civil Defense / Medical)</option>
+                <option value="ROLE_COORDINATOR">Coordinator (dispatch)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="reg-lat">Home Latitude (responders — for radius matching)</label>
+              <input type="number" id="reg-lat" step="any" placeholder="e.g. 24.2075" />
+            </div>
+            <div class="form-group">
+              <label for="reg-lng">Home Longitude</label>
+              <input type="number" id="reg-lng" step="any" placeholder="e.g. 55.7447" />
+            </div>
+          </div>
+
+          <!-- Shared fields -->
+          <div class="form-group">
+            <label for="auth-phone">Phone Number</label>
+            <input type="tel" id="auth-phone" placeholder="+971 50 123 4567" autocomplete="tel" required />
+          </div>
+          <div class="form-group">
+            <label for="auth-password">Password</label>
+            <input type="password" id="auth-password" placeholder="••••••••" autocomplete="current-password" required />
+          </div>
+
+          <div id="login-submit">
+            <button type="submit" class="btn btn-primary">Sign In</button>
+            <div class="auth-toggle">Don't have an account? <a onclick="showRegister()">Register</a></div>
+          </div>
+          <div id="register-submit" style="display:none">
+            <button type="button" class="btn btn-primary" onclick="submitRegister(event)">Create Account</button>
+            <div class="auth-toggle">Already registered? <a onclick="showLogin()">Sign in</a></div>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         SCREEN: Resident — SOS
+         ══════════════════════════════════════════════════════════════ -->
+    <div class="screen" id="screen-resident">
+
+      <!-- GPS status bar -->
+      <div class="geo-status" id="geo-status">
+        <div class="geo-dot acquiring"></div>
+        <span class="geo-text">Acquiring GPS…</span>
+      </div>
+
+      <!-- Category selector -->
+      <div class="category-grid">
+        <button class="cat-btn selected" data-cat="medical" onclick="selectCategory('medical')">🏥 Medical</button>
+        <button class="cat-btn" data-cat="fire"    onclick="selectCategory('fire')">🔥 Fire</button>
+        <button class="cat-btn" data-cat="vehicle" onclick="selectCategory('vehicle')">🚗 Vehicle</button>
+        <button class="cat-btn" data-cat="other"   onclick="selectCategory('other')">⚠️ Other</button>
+      </div>
+
+      <!-- Big SOS button -->
+      <div class="sos-section">
+        <button class="sos-btn" id="sos-btn" onclick="sendSOS()">
+          <span class="sos-label">SOS</span>
+          <span class="sos-sub">Press in emergency</span>
+        </button>
+      </div>
+
+      <!-- Optional note -->
+      <div class="form-group">
+        <label for="sos-note">Additional details (optional)</label>
+        <textarea id="sos-note" placeholder="e.g. Person is unconscious, trapped in vehicle…"></textarea>
+      </div>
+
+      <hr class="divider" />
+
+      <!-- My previous alerts -->
+      <div class="section-header">
+        <h2>My Alerts</h2>
+      </div>
+      <div id="my-alerts-list" class="alert-list">
+        <div class="empty-state"><div class="empty-icon">📡</div><p>No active alerts</p></div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         SCREEN: My alert detail (after SOS sent)
+         ══════════════════════════════════════════════════════════════ -->
+    <div class="screen" id="screen-my-alert">
+      <div class="section-header mt-2">
+        <h2>SOS Sent ✓</h2>
+      </div>
+      <p class="text-muted text-sm">Responders have been notified. Track the status below.</p>
+      <div id="my-alert-detail" class="mt-2"></div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         SCREEN: Responder / Coordinator dashboard
+         ══════════════════════════════════════════════════════════════ -->
+    <div class="screen" id="screen-dashboard">
+
+      <!-- Stats bar -->
+      <div class="stats-bar" id="stats-bar" style="display:none">
+        <div class="stat-card">
+          <div class="stat-value" id="stat-total">—</div>
+          <div class="stat-label">Total Alerts</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="stat-resolved">—</div>
+          <div class="stat-label">Resolved</div>
+        </div>
+        <div class="stat-card highlight">
+          <div class="stat-value" id="stat-avg">—</div>
+          <div class="stat-label">Avg Ack Time</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="stat-median">—</div>
+          <div class="stat-label">Median Ack</div>
+        </div>
+      </div>
+
+      <!-- Tabs -->
+      <div class="tab-bar">
+        <button class="tab-btn active" id="tab-active" onclick="switchTab('active')">Active</button>
+        <button class="tab-btn" id="tab-history" onclick="switchTab('history')">History</button>
+      </div>
+
+      <!-- Active alerts tab -->
+      <div id="tab-panel-active">
+        <div class="section-header mt-1">
+          <span class="section-count" id="dashboard-count">0</span>
+          <span class="text-muted text-sm">active alerts</span>
+          <button class="btn btn-outline btn-sm" style="margin-left:auto" onclick="loadDashboard()">↺ Refresh</button>
+        </div>
+        <div id="dashboard-alerts" class="alert-list">
+          <div class="empty-state"><div class="empty-icon">✅</div><p>No active alerts — all clear</p></div>
+        </div>
+      </div>
+
+      <!-- History tab -->
+      <div id="tab-panel-history" style="display:none">
+        <div class="section-header mt-1">
+          <span class="text-muted text-sm">Last 20 resolved alerts</span>
+          <button class="btn btn-outline btn-sm" style="margin-left:auto" onclick="loadHistory()">↺ Refresh</button>
+        </div>
+        <div id="history-alerts" class="alert-list">
+          <div class="empty-state"><div class="empty-icon">📋</div><p>No resolved alerts yet</p></div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Toast container -->
+<div id="toast-container"></div>
+
+<!--
+  Scripts at bottom of body so the HTML+CSS render immediately.
+  Leaflet must come before app.js because app.js references the global `L`.
+-->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>
