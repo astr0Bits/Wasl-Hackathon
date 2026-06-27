@@ -138,7 +138,10 @@ Events pushed by server:
 5. Responder clicks "Acknowledge" → Resident sees status update live
 6. Responder clicks "En Route" → status advances
 7. Hit `/api/stats` to show timed response data to judges
-
+<img width="469" height="539" alt="running server" src="https://github.com/user-attachments/assets/7d6fc7b6-a580-4ba4-92b1-204ee67c229f" />
+<img width="959" height="513" alt="login" src="https://github.com/user-attachments/assets/46ce0989-a5e0-4f5a-8d48-c9a964042c02" />
+<img width="959" height="508" alt="signup" src="https://github.com/user-attachments/assets/c16479ff-3b40-40c5-a687-e87910ac350a" />
+<img width="959" height="509" alt="Resident-dashboard" src="https://github.com/user-attachments/assets/4c9e34a7-5f06-455e-9b10-946c94582045" />
 ---
 
 ## Environment Variables
